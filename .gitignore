@@ -1,0 +1,16 @@
+# PyInstaller outputs
+dist/
+/build/*
+!/build/build_windows.bat
+!/build/build_mac.sh
+!/build/build_linux.sh
+*.spec
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Python environments
+.venv/
+venv/
+env/

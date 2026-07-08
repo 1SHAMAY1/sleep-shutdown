@@ -1,0 +1,83 @@
+name: Build and Release Sleep Shutdown
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: sleep-shutdown-windows.exe
+            build_cmd: |
+              pip install -r app/requirements.txt pyinstaller
+              pyinstaller --onefile --console --name sleep-shutdown-windows app/main.py
+          - os: macos-latest
+            artifact_name: sleep-shutdown-mac.zip
+            build_cmd: |
+              pip install -r app/requirements.txt pyinstaller
+              pyinstaller --onefile --windowed --name "Sleep Shutdown" app/main.py
+              cd dist && zip -r sleep-shutdown-mac.zip "Sleep Shutdown.app"
+          - os: ubuntu-latest
+            artifact_name: sleep-shutdown-linux.tar.gz
+            build_cmd: |
+              pip install -r app/requirements.txt pyinstaller
+              pyinstaller --onefile --console --name sleep-shutdown app/main.py
+              cd dist && tar -czf sleep-shutdown-linux.tar.gz sleep-shutdown
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Build binary
+        run: ${{ matrix.build_cmd }}
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-build
+          path: dist/${{ matrix.artifact_name }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/sleep-shutdown-windows.exe
+            artifacts/sleep-shutdown-mac.zip
+            artifacts/sleep-shutdown-linux.tar.gz
+            installers/install_windows.ps1
+            installers/install_mac.sh
+            installers/install_linux.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
